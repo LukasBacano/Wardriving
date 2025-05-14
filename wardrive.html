@@ -1,0 +1,165 @@
+<!-- wardrive.html - Elegant Webapp til GPS + WiFi-data fra ESP32 (Hotspot-kompatibel) -->
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Wardriving Logger</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(145deg, #f0f2f5, #dce3ea);
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      margin-top: 50px;
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 600px;
+    }
+    h2 {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #2c3e50;
+    }
+    p {
+      color: #555;
+      font-size: 15px;
+      margin-bottom: 20px;
+    }
+    label {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 6px;
+      color: #2c3e50;
+    }
+    input[type=text] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    button {
+      padding: 12px 25px;
+      background: #007bff;
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #333;
+      background: #eef2f7;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    #log {
+      margin-top: 20px;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 13px;
+      color: #2d2d2d;
+    }
+    #downloadLink {
+      display: none;
+      margin-top: 20px;
+      text-decoration: none;
+      background: #28a745;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    #downloadLink:hover {
+      background: #1f8f39;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📡 ESP32 Wardriving Logger</h2>
+    <p>Hent GPS + netværksdata fra ESP32 (forbundet via iPhone-hotspot)</p>
+
+    <label for="espIP">ESP32 IP-adresse</label>
+    <input type="text" id="espIP" value="192.168.1.42" placeholder="fx 192.168.1.42">
+
+    <button onclick="fetchData()">▶️ Start logning</button>
+
+    <div id="status">Status: Klar</div>
+    <div id="log"></div>
+    <a id="downloadLink" download="wardrive.json">↓ Download JSON</a>
+  </div>
+
+  <script>
+    let dataLog = [];
+
+    async function fetchData() {
+      const ip = document.getElementById("espIP").value.trim();
+      const endpoint = `http://${ip}/data.json`;
+      document.getElementById("status").innerText = "📍 Henter GPS...";
+
+      if (!navigator.geolocation) {
+        alert("GPS ikke tilgængelig i denne browser.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const now = new Date();
+        const timestamp = now.toISOString();
+        const gps = {
+          lat: pos.coords.latitude.toFixed(6),
+          lon: pos.coords.longitude.toFixed(6),
+          timestamp: timestamp
+        };
+
+        document.getElementById("status").innerText = `📶 Henter WiFi fra ESP32 @ ${ip}...`;
+
+        try {
+          const res = await fetch(endpoint);
+          const wifiData = await res.json();
+
+          const combined = wifiData.map(net => ({ ...net, lat: gps.lat, lon: gps.lon, timestamp: gps.timestamp }));
+          dataLog = dataLog.concat(combined);
+
+          document.getElementById("log").innerText = JSON.stringify(dataLog, null, 2);
+          createDownload();
+          document.getElementById("status").innerText = "✅ Logning klar – hent din JSON";
+        } catch (err) {
+          document.getElementById("status").innerText = "❌ Kunne ikke hente data fra ESP32.";
+        }
+      }, err => {
+        document.getElementById("status").innerText = "❌ GPS-fejl: " + err.message;
+      });
+    }
+
+    function createDownload() {
+      const blob = new Blob([JSON.stringify(dataLog, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.getElementById("downloadLink");
+      link.href = url;
+      link.style.display = "inline-block";
+    }
+  </script>
+</body>
+</html>
